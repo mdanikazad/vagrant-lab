@@ -276,6 +276,32 @@ vagrant reload --provision ubuntu01     # restart + provision
 
 The first `vagrant up` after editing the `Vagrantfile`'s provisioning block usually means: `vagrant up --provision` (or `vagrant reload --provision` if you also changed provider/network settings).
 
+### Installing Docker on a VM
+
+`scripts/install-docker.sh` installs Docker Engine on an Ubuntu machine from Docker's official apt repository. It updates apt first, installs the packages, then starts and enables the service.
+
+Run it inside a VM:
+
+```bash
+vagrant ssh ubuntu01
+cd /vagrant/scripts     # /vagrant is your project folder on the Mac
+sudo ./install-docker.sh
+```
+
+Or from the Mac, using Vagrant's shell provisioner (add this to the `ubuntu01` block in the `Vagrantfile` first):
+
+```ruby
+vm.vm.provision "shell",
+  path: "scripts/install-docker.sh",
+  privileged: true
+```
+
+```bash
+vagrant provision ubuntu01
+```
+
+The script requires root, ends with `systemctl is-active` / `is-enabled` checks, and prints the `docker` and `docker compose` versions on success.
+
 ---
 
 ## Useful commands quick reference
@@ -376,7 +402,7 @@ vagrant-lab/
 │   └── vagrant-commands.md              # full command reference
 │
 └── scripts/
-    └── (provisioning scripts go here)
+    └── install-docker.sh              # installs Docker Engine on Ubuntu (apt → install → start → enable)
 ```
 
 > ℹ️ The earlier version of this README referenced `networking.md`, `provisioning.md`, and `troubleshooting.md` inside `docs/`. Those files do not exist yet — start here, then add them as you learn.
