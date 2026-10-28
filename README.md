@@ -276,31 +276,76 @@ vagrant reload --provision ubuntu01     # restart + provision
 
 The first `vagrant up` after editing the `Vagrantfile`'s provisioning block usually means: `vagrant up --provision` (or `vagrant reload --provision` if you also changed provider/network settings).
 
+This lab ships with two provisioners already wired up on both `ubuntu01` and
+`ubuntu02`: they install Docker Engine and Docker Compose. They run
+automatically on `vagrant up` and can be re-applied at any time with
+`vagrant provision`.
+
+> ⚠️ When you add your own provisioner scripts, make them safe to re-run.
+> `vagrant provision` is something you will do many times, and a script that
+> fails on the second run breaks the workflow. The two Docker scripts in this
+> repo are idempotent and can be re-applied freely.
+
 ### Installing Docker on a VM
 
-`scripts/install-docker.sh` installs Docker Engine on an Ubuntu machine from Docker's official apt repository. It updates apt first, installs the packages, then starts and enables the service.
+Two scripts live in `scripts/`, and both are wired into the `Vagrantfile` as
+provisioners, so a plain `vagrant up` installs Docker and Compose for you.
 
-Run it inside a VM:
+| Script | What it installs | Command it provides |
+| --- | --- | --- |
+| `scripts/install-docker.sh` | Docker Engine, Buildx, and the Compose **plugin** from Docker's official apt repo | `docker`, `docker compose` |
+| `scripts/install-docker-compose.sh` | The standalone Compose **binary** in `/usr/local/bin` | `docker-compose` |
+
+Use `docker compose` (the modern plugin form) for new work. The standalone
+`docker-compose` binary is installed too, so older scripts and tutorials that
+call the hyphenated command keep working.
+
+**Automatically** — this is what the `Vagrantfile` does:
+
+```bash
+vagrant provision ubuntu01      # re-run the provisioners on a running VM
+vagrant up --provision ubuntu01 # start + provision
+```
+
+**Manually**, inside a VM:
 
 ```bash
 vagrant ssh ubuntu01
-cd /vagrant/scripts     # /vagrant is your project folder on the Mac
+cd /vagrant/scripts
 sudo ./install-docker.sh
+sudo ./install-docker-compose.sh
 ```
 
-Or from the Mac, using Vagrant's shell provisioner (add this to the `ubuntu01` block in the `Vagrantfile` first):
+> 💡 The `docker` group membership added by the script only applies to *new*
+> login sessions. After provisioning, log out and back in (or run
+> `newgrp docker`) before `docker ps` works without `sudo`.
 
-```ruby
-vm.vm.provision "shell",
-  path: "scripts/install-docker.sh",
-  privileged: true
-```
+#### What the scripts handle for you
+
+Running an installer inside a VM has a few sharp edges. The scripts are built
+around them:
+
+- **No TTY.** The Vagrant shell provisioner runs without a terminal, so any
+  interactive `apt`/`dpkg` prompt would hang the build. Both scripts export
+  `DEBIAN_FRONTEND=noninteractive` and pass `--force-confdef`/`--force-confold`
+  to `dpkg`.
+- **No interactive service restarts.** Ubuntu's `needrestart` apt hook is
+  suppressed (`NEEDRESTART_MODE=a`, `NEEDRESTART_SUSPEND=1`) so package
+  installs don't stall waiting on a reboot prompt.
+- **Self-contained.** Vagrant uploads a provisioner script to `/tmp` and runs
+  it from there, so a script cannot source a sibling file. Each script is
+  standalone on purpose.
+- **Idempotent.** Re-running `vagrant provision` is safe: existing packages
+  are left alone and the `docker` group is only touched when needed.
+- **Architecture aware.** The Compose binary is fetched as `aarch64` or
+  `x86_64` depending on the machine, and the SHA256 checksum is verified
+  before the binary is installed.
+
+#### Pin a Compose version
 
 ```bash
-vagrant provision ubuntu01
+sudo COMPOSE_VERSION=v2.29.7 ./install-docker-compose.sh
 ```
-
-The script requires root, ends with `systemctl is-active` / `is-enabled` checks, and prints the `docker` and `docker compose` versions on success.
 
 ---
 
@@ -402,7 +447,8 @@ vagrant-lab/
 │   └── vagrant-commands.md              # full command reference
 │
 └── scripts/
-    └── install-docker.sh              # installs Docker Engine on Ubuntu (apt → install → start → enable)
+    ├── install-docker.sh                  # installs Docker Engine + Compose plugin on Ubuntu
+    └── install-docker-compose.sh          # installs the standalone docker-compose binary
 ```
 
 > ℹ️ The earlier version of this README referenced `networking.md`, `provisioning.md`, and `troubleshooting.md` inside `docs/`. Those files do not exist yet — start here, then add them as you learn.

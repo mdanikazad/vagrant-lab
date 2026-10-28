@@ -168,6 +168,24 @@ vagrant provision ubuntu01
 vagrant reload --provision ubuntu01
 ```
 
+### What this lab provisions
+
+Both `ubuntu01` and `ubuntu02` run two shell provisioners from `scripts/`:
+
+| Provisioner | Installs | Provides |
+| --- | --- | --- |
+| `scripts/install-docker.sh` | Docker Engine, Buildx, Compose plugin (Docker's apt repo) | `docker`, `docker compose` |
+| `scripts/install-docker-compose.sh` | Standalone Compose binary in `/usr/local/bin` | `docker-compose` |
+
+Both are idempotent, so `vagrant provision` can be re-run safely. They are
+written to survive the shell provisioner's environment: no TTY, no
+interactive `apt` prompts, and the script runs from `/tmp` rather than from
+your project folder.
+
+> 🔑 After the first provision, log out and back into the VM (`exit`, then
+> `vagrant ssh ubuntu01`) so the new `docker` group membership applies. Then
+> `docker ps` works without `sudo`.
+
 ---
 
 ## 5. Validation and debugging
